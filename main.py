@@ -2,7 +2,10 @@ import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import cv2
-import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe.tasks.python.vision import HandLandmarkerOptions, HandLandmarker
+from mediapipe import Image, ImageFormat
 import pyautogui
 import time
 
@@ -10,14 +13,16 @@ import config
 import gestures
 import actions
 
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.6,
+# Create hand landmarker
+options = HandLandmarkerOptions(
+    base_options=python.BaseOptions(model_asset_path='hand_landmarker.task'),
+    running_mode=vision.RunningMode.VIDEO,
+    num_hands=1,
+    min_hand_detection_confidence=0.6,
+    min_hand_presence_confidence=0.6,
     min_tracking_confidence=0.6
 )
-draw = mp.solutions.drawing_utils
+hands = HandLandmarker.create_from_options(options)
 
 # Try camera indices
 cap = None
@@ -49,12 +54,13 @@ while True:
     h, w, _ = frame.shape
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = hands.process(rgb)
+    mp_image = Image(image_format=ImageFormat.SRGB, data=rgb)
+    result = hands.detect_for_video(mp_image, int(time.time() * 1000))
 
-    if result.multi_hand_landmarks:
-        hand = result.multi_hand_landmarks[0]
-        lm = [(int(p.x * w), int(p.y * h)) for p in hand.landmark]
-        draw.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
+    if result.hand_landmarks:
+        hand = result.hand_landmarks[0]
+        lm = [(int(p.x * w), int(p.y * h)) for p in hand]
+        # vision.draw_landmarks(frame, result, connections=vision.HAND_CONNECTIONS)
 
         ix, iy = lm[8]
         mx = int(ix / w * screen_w)
